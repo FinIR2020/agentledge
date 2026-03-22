@@ -546,7 +546,7 @@ app.get("/api/health", (req, res) => {
   });
 });
 
-server.listen(PORT, () => {
+server.listen(PORT, "0.0.0.0", () => {
   console.log(`\n🌐 AgentLedge Dashboard: http://localhost:${PORT}`);
   console.log(`📡 API: http://localhost:${PORT}/api/status`);
   console.log(`🪪 AL: http://localhost:${PORT}/api/al/agents`);
