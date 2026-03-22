@@ -6,12 +6,12 @@
  */
 import { Client, AccountId, PrivateKey, Hbar } from "@hashgraph/sdk";
 import { createRequire } from "module";
+import { saucerSwapPlugin } from "saucer-swap-plugin";
 import dotenv from "dotenv";
 dotenv.config();
 
 const require = createRequire(import.meta.url);
 const { HederaAIToolkit } = require("hedera-agent-kit");
-const { saucerSwapPlugin } = require("saucer-swap-plugin");
 
 const accountId = AccountId.fromString(process.env.HEDERA_ACCOUNT_ID);
 const privateKey = PrivateKey.fromString(process.env.HEDERA_PRIVATE_KEY); // auto-detects ECDSA or ED25519
