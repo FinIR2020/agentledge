@@ -6,7 +6,6 @@
  */
 import { Client, AccountId, PrivateKey, Hbar } from "@hashgraph/sdk";
 import { createRequire } from "module";
-import { saucerSwapPlugin } from "saucer-swap-plugin";
 import dotenv from "dotenv";
 dotenv.config();
 
@@ -34,23 +33,9 @@ const toolkit = new HederaAIToolkit({
   },
 });
 
-// Load SaucerSwap plugin tools separately and merge them in
-const saucerSwapToolkit = new HederaAIToolkit({
-  client,
-  configuration: {
-    context: { operatorAccountId: accountId, operatorPrivateKey: privateKey },
-    ledgerId: "testnet",
-    plugins: [saucerSwapPlugin],
-  },
-});
-
-// Merge SaucerSwap tools into main toolkit
-Object.assign(toolkit.tools, saucerSwapToolkit.tools);
-// Also add SaucerSwap tools to the underlying HederaAgentAPI so runTool() works
-const saucerSwapApiTools = saucerSwapToolkit._hedera.tools || [];
-if (Array.isArray(toolkit._hedera.tools)) {
-  toolkit._hedera.tools.push(...saucerSwapApiTools);
-}
+// NOTE: SaucerSwap plugin removed — its ESM internals are incompatible with
+// hedera-agent-kit's CJS require(), and the SaucerSwap API requires an API key
+// (returns 401 without one). DEX quotes fall back to simulated values.
 
 const hederaAPI = toolkit._hedera;
 
