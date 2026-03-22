@@ -1,0 +1,58 @@
+# KYA Audit Report Flow
+# On-demand compliance report generation
+
+name: KYA Audit Report
+description: >
+  Generate a comprehensive KYA compliance audit report covering
+  all agent decisions, security findings, and remediation status
+  for a specified time period.
+
+trigger:
+  - event: mention
+    keyword: "@kya-audit"
+
+steps:
+  - name: gather_activity
+    agent: kya-compliance-reporter
+    prompt: >
+      Review all recent security-related activity in this project:
+      - Security scan results
+      - Vulnerability findings and their status
+      - Applied fixes and approvals
+      - Agent decisions and trust scores
+      
+      Compile a complete activity log.
+    tools:
+      - read_issues
+      - read_merge_requests
+    output: activity_log
+
+  - name: generate_report
+    agent: kya-compliance-reporter
+    prompt: >
+      Generate a full KYA compliance audit report from this activity:
+      {{ activity_log }}
+      
+      Include:
+      1. Executive Summary
+      2. Agent Trust Scores & Performance
+      3. Complete Decision Chain
+      4. Human Oversight Actions
+      5. Compliance Mapping (SOC2 CC6.1, CC7.2, CC8.1; HIPAA §164.312; ISO27001 A.12.6)
+      6. Open Items & Recommendations
+      
+      Format as professional Markdown report.
+    depends_on: gather_activity
+    output: audit_report
+
+  - name: publish_report
+    agent: kya-compliance-reporter
+    prompt: >
+      Create an issue with this audit report:
+      {{ audit_report }}
+      
+      Title: "KYA Compliance Audit — {{ current_date }}"
+      Labels: kya-audit, compliance, report
+    tools:
+      - create_issue
+    depends_on: generate_report

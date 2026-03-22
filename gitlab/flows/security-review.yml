@@ -1,0 +1,101 @@
+# KYA Security Review Flow
+# Triggered on MR creation — runs full security pipeline with accountability
+
+name: KYA Security Review
+description: >
+  Automated security review with full KYA accountability chain.
+  Scanner → Analyzer → Fixer → (Human if Critical) → Compliance Report.
+  Every agent decision is logged with reasoning, confidence, and audit trail.
+
+trigger:
+  - event: merge_request_created
+  - event: merge_request_updated
+
+steps:
+  - name: scan_vulnerabilities
+    agent: kya-security-scanner
+    prompt: >
+      Scan the changes in this merge request for security vulnerabilities.
+      Check all modified files for: SQL injection, XSS, path traversal,
+      hardcoded secrets, dependency vulnerabilities, auth issues.
+      Log every finding with CWE ID, confidence score, and reasoning.
+      Output findings in JSON format.
+    tools:
+      - read_file
+      - analyze_code
+    output: scan_results
+
+  - name: analyze_severity
+    agent: kya-severity-analyzer
+    prompt: >
+      Analyze the security findings from the Scanner Agent:
+      {{ scan_results }}
+      
+      For each finding, calculate CVSS v3.1 score, assess exploitability
+      and business impact. Prioritize by urgency.
+      Flag CRITICAL findings for mandatory human review.
+    tools:
+      - read_file
+      - analyze_code
+    depends_on: scan_vulnerabilities
+    output: severity_analysis
+
+  - name: generate_fixes
+    agent: kya-auto-fixer
+    prompt: >
+      Generate security patches for these prioritized vulnerabilities:
+      {{ severity_analysis }}
+      
+      For CRITICAL: Create MR with 'human-review-required' label. DO NOT auto-merge.
+      For HIGH: Create MR with 'needs-review' label.
+      For MEDIUM/LOW: Create MR with auto-approve if confidence > 90%.
+      
+      Document every change with before/after code and reasoning.
+    tools:
+      - read_file
+      - write_file
+      - create_merge_request
+    depends_on: analyze_severity
+    output: fix_results
+
+  - name: human_review_gate
+    condition: "{{ severity_analysis contains 'CRITICAL' }}"
+    type: human_approval
+    message: >
+      ⚠️ CRITICAL vulnerability detected. Human review required.
+      
+      Findings: {{ severity_analysis }}
+      Proposed fixes: {{ fix_results }}
+      
+      Please approve or reject the proposed fixes.
+    timeout: 24h
+    depends_on: generate_fixes
+
+  - name: compliance_report
+    agent: kya-compliance-reporter
+    prompt: >
+      Generate a KYA compliance audit report for this security review:
+      
+      Scanner findings: {{ scan_results }}
+      Severity analysis: {{ severity_analysis }}
+      Applied fixes: {{ fix_results }}
+      
+      Include: decision chain, agent trust scores, compliance mapping
+      (SOC2, HIPAA, ISO27001), and recommendations.
+    tools:
+      - read_issues
+      - read_merge_requests
+    depends_on: generate_fixes
+    output: compliance_report
+
+  - name: create_audit_issue
+    agent: kya-compliance-reporter
+    prompt: >
+      Create an issue with the compliance audit report:
+      {{ compliance_report }}
+      
+      Title: "KYA Security Audit — MR !{{ merge_request.iid }}"
+      Labels: kya-audit, security, compliance
+    tools:
+      - create_issue
+    depends_on: compliance_report

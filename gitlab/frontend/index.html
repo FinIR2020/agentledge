@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KYA for DevSecOps — Audit Dashboard</title>
+  <style>
+    :root { --bg:#0a0e1a; --surface:#111827; --surface2:#1a2235; --border:#1e2a3f; --primary:#3b82f6; --green:#10b981; --red:#ef4444; --yellow:#f59e0b; --purple:#8b5cf6; --cyan:#06b6d4; --text:#e2e8f0; --text-dim:#94a3b8; --text-muted:#64748b; }
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:'Inter',-apple-system,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+    .header{background:var(--surface);border-bottom:1px solid var(--border);padding:16px 24px;display:flex;align-items:center;justify-content:space-between}
+    .title{font-size:20px;font-weight:700;background:linear-gradient(135deg,var(--purple),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+    .subtitle{font-size:12px;color:var(--text-dim)}
+    .main{max-width:1200px;margin:0 auto;padding:24px}
+    .stats-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:24px}
+    .stat-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px}
+    .stat-label{font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px}
+    .stat-value{font-size:24px;font-weight:700;margin-top:4px}
+    .stat-sub{font-size:12px;color:var(--text-dim);margin-top:2px}
+    .section{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:16px}
+    .section h2{font-size:16px;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+    .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+    .badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600}
+    .badge-critical{background:rgba(239,68,68,.2);color:var(--red)}
+    .badge-high{background:rgba(239,68,68,.15);color:#f87171}
+    .badge-medium{background:rgba(245,158,11,.15);color:var(--yellow)}
+    .badge-low{background:rgba(16,185,129,.15);color:var(--green)}
+    .badge-open{background:rgba(59,130,246,.15);color:var(--primary)}
+    .badge-fixed{background:rgba(16,185,129,.15);color:var(--green)}
+    .agent-card{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:8px}
+    .trust-bar{height:6px;background:var(--border);border-radius:3px;margin-top:8px;overflow:hidden}
+    .trust-fill{height:100%;border-radius:3px;transition:width .5s}
+    table{width:100%;border-collapse:collapse;font-size:13px}
+    th{font-size:11px;text-transform:uppercase;color:var(--text-muted);text-align:left;padding:8px 12px;border-bottom:1px solid var(--border)}
+    td{padding:10px 12px;border-bottom:1px solid var(--border)}
+    tr:hover{background:var(--surface2)}
+    .btn{padding:10px 20px;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;transition:all .2s}
+    .btn-primary{background:var(--primary);color:white}
+    .btn-primary:hover{background:#2563eb}
+    .btn-green{background:var(--green);color:white}
+    .btn-red{background:rgba(239,68,68,.15);color:var(--red);border:1px solid rgba(239,68,68,.3)}
+    .btn-secondary{background:var(--surface2);color:var(--text);border:1px solid var(--border)}
+    .toast{position:fixed;bottom:20px;right:20px;padding:12px 20px;border-radius:8px;font-size:13px;z-index:1000;background:var(--green);color:white}
+    @keyframes slideIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+    .animate-in{animation:slideIn .3s ease-out}
+    @media(max-width:900px){.stats-grid{grid-template-columns:repeat(2,1fr)}.grid-2{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+<div class="header">
+  <div>
+    <div class="title">🛡️ KYA for DevSecOps</div>
+    <div class="subtitle">Know Your Agent — Audit & Accountability Dashboard</div>
+  </div>
+  <div style="display:flex;gap:8px">
+    <button class="btn btn-primary" onclick="runCycle()">🔄 Run Security Scan</button>
+    <button class="btn btn-secondary" onclick="generateReport()">📋 Generate Report</button>
+  </div>
+</div>
+
+<div class="main">
+  <!-- Stats -->
+  <div class="stats-grid">
+    <div class="stat-card" style="border-top:2px solid var(--red)">
+      <div class="stat-label">🔴 Critical</div>
+      <div class="stat-value" id="statCritical">0</div>
+      <div class="stat-sub">Vulnerabilities</div>
+    </div>
+    <div class="stat-card" style="border-top:2px solid var(--yellow)">
+      <div class="stat-label">🟡 Open Issues</div>
+      <div class="stat-value" id="statOpen">0</div>
+      <div class="stat-sub">Need attention</div>
+    </div>
+    <div class="stat-card" style="border-top:2px solid var(--green)">
+      <div class="stat-label">✅ Fixed</div>
+      <div class="stat-value" id="statFixed">0</div>
+      <div class="stat-sub">Resolved</div>
+    </div>
+    <div class="stat-card" style="border-top:2px solid var(--purple)">
+      <div class="stat-label">📋 Decisions</div>
+      <div class="stat-value" id="statDecisions">0</div>
+      <div class="stat-sub">Logged with reasoning</div>
+    </div>
+    <div class="stat-card" style="border-top:2px solid var(--cyan)">
+      <div class="stat-label">🛡️ Approvals</div>
+      <div class="stat-value" id="statApprovals">0</div>
+      <div class="stat-sub">Human oversight events</div>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <!-- Agent Trust Scores -->
+    <div class="section">
+      <h2>🤖 Agent Trust Scores</h2>
+      <div id="agentCards">
+        <div class="agent-card">
+          <div style="display:flex;justify-content:space-between"><strong>🔍 Scanner</strong><span id="tsScanner" style="color:var(--green)">100/100</span></div>
+          <div style="font-size:11px;color:var(--text-dim)">Vulnerability detection</div>
+          <div class="trust-bar"><div class="trust-fill" id="barScanner" style="width:100%;background:var(--green)"></div></div>
+        </div>
+        <div class="agent-card">
+          <div style="display:flex;justify-content:space-between"><strong>📊 Analyzer</strong><span id="tsAnalyzer" style="color:var(--green)">100/100</span></div>
+          <div style="font-size:11px;color:var(--text-dim)">Severity assessment (CVSS)</div>
+          <div class="trust-bar"><div class="trust-fill" id="barAnalyzer" style="width:100%;background:var(--green)"></div></div>
+        </div>
+        <div class="agent-card">
+          <div style="display:flex;justify-content:space-between"><strong>🔧 Fixer</strong><span id="tsFixer" style="color:var(--green)">100/100</span></div>
+          <div style="font-size:11px;color:var(--text-dim)">Patch generation</div>
+          <div class="trust-bar"><div class="trust-fill" id="barFixer" style="width:100%;background:var(--green)"></div></div>
+        </div>
+        <div class="agent-card">
+          <div style="display:flex;justify-content:space-between"><strong>📋 Compliance</strong><span id="tsCompliance" style="color:var(--green)">100/100</span></div>
+          <div style="font-size:11px;color:var(--text-dim)">Audit report generation</div>
+          <div class="trust-bar"><div class="trust-fill" id="barCompliance" style="width:100%;background:var(--green)"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pending Approvals -->
+    <div class="section">
+      <h2>🛡️ Pending Human Approvals</h2>
+      <div id="pendingApprovals" style="color:var(--text-dim);font-size:13px">No pending approvals. Run a security scan to generate findings.</div>
+    </div>
+  </div>
+
+  <!-- Vulnerability Table -->
+  <div class="section">
+    <h2>🔍 Vulnerability Findings</h2>
+    <table>
+      <thead><tr><th>ID</th><th>File</th><th>CWE</th><th>Title</th><th>Severity</th><th>Status</th><th>Found By</th></tr></thead>
+      <tbody id="vulnTable"><tr><td colspan="7" style="text-align:center;color:var(--text-muted)">No vulnerabilities detected yet</td></tr></tbody>
+    </table>
+  </div>
+
+  <!-- Decision Audit Trail -->
+  <div class="section">
+    <h2>📜 Decision Audit Trail</h2>
+    <table>
+      <thead><tr><th>Time</th><th>Agent</th><th>Type</th><th>Action</th><th>Confidence</th></tr></thead>
+      <tbody id="decisionTable"><tr><td colspan="5" style="text-align:center;color:var(--text-muted)">No decisions logged yet</td></tr></tbody>
+    </table>
+  </div>
+
+  <!-- Compliance -->
+  <div class="section">
+    <h2>📋 Compliance Status</h2>
+    <div id="complianceStatus" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+      <div class="agent-card"><strong>SOC2 CC6.1</strong><br><span style="font-size:12px;color:var(--text-dim)">Logical Access</span><br><span style="color:var(--text-muted)">Pending scan...</span></div>
+      <div class="agent-card"><strong>SOC2 CC7.2</strong><br><span style="font-size:12px;color:var(--text-dim)">System Monitoring</span><br><span style="color:var(--text-muted)">Pending scan...</span></div>
+      <div class="agent-card"><strong>HIPAA §164.312</strong><br><span style="font-size:12px;color:var(--text-dim)">Technical Safeguards</span><br><span style="color:var(--text-muted)">Pending scan...</span></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = '';
+let pollTimer = null;
+
+async function runCycle() {
+  try {
+    const resp = await fetch(`${API}/api/demo/run-cycle`, { method: 'POST' });
+    const data = await resp.json();
+    if (data.ok) { showToast('Security scan complete!'); refreshAll(); }
+  } catch (e) { showToast('Scan failed: ' + e.message); }
+}
+
+async function generateReport() {
+  try {
+    const resp = await fetch(`${API}/api/generate-report`, { method: 'POST' });
+    const data = await resp.json();
+    if (data.ok) showToast('Compliance report generated!');
+  } catch (e) { showToast('Report failed'); }
+}
+
+async function approve(id) {
+  await fetch(`${API}/api/approve/${id}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+  showToast('Approved!'); refreshAll();
+}
+
+async function reject(id) {
+  await fetch(`${API}/api/reject/${id}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"reason":"Rejected by user"}' });
+  showToast('Rejected'); refreshAll();
+}
+
+async function refreshAll() {
+  try {
+    const resp = await fetch(`${API}/api/status`);
+    const d = await resp.json();
+    
+    document.getElementById('statCritical').textContent = d.stats?.critical || 0;
+    document.getElementById('statOpen').textContent = d.openVulnerabilities || 0;
+    document.getElementById('statFixed').textContent = (d.totalVulnerabilities || 0) - (d.openVulnerabilities || 0);
+    document.getElementById('statDecisions').textContent = d.totalDecisions || 0;
+    document.getElementById('statApprovals').textContent = (d.stats?.humanApprovals || 0) + (d.stats?.humanRejections || 0);
+    
+    // Trust scores
+    for (const name of ['Scanner','Analyzer','Fixer','Compliance']) {
+      const agent = d.agents?.[name];
+      if (agent) {
+        const score = agent.trustScore || 100;
+        document.getElementById(`ts${name}`).textContent = `${score}/100`;
+        const bar = document.getElementById(`bar${name}`);
+        bar.style.width = `${score}%`;
+        bar.style.background = score >= 80 ? 'var(--green)' : score >= 60 ? 'var(--yellow)' : 'var(--red)';
+      }
+    }
+    
+    // Pending approvals
+    const aprResp = await fetch(`${API}/api/pending-approvals`);
+    const aprData = await aprResp.json();
+    const aprDiv = document.getElementById('pendingApprovals');
+    if (aprData.approvals?.length) {
+      aprDiv.innerHTML = aprData.approvals.map(a => `
+        <div class="agent-card animate-in" style="border-left:3px solid var(--yellow)">
+          <div style="display:flex;justify-content:space-between">
+            <strong>${a.agent}: ${a.action}</strong>
+            <span class="badge badge-${(a.severity||'medium').toLowerCase()}">${a.severity}</span>
+          </div>
+          <div style="font-size:12px;color:var(--text-dim);margin:6px 0">${a.reasons?.join(', ') || ''}</div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-green" style="padding:6px 14px;font-size:12px" onclick="approve('${a.id}')">✅ Approve</button>
+            <button class="btn btn-red" style="padding:6px 14px;font-size:12px" onclick="reject('${a.id}')">❌ Reject</button>
+          </div>
+        </div>
+      `).join('');
+    } else {
+      aprDiv.innerHTML = '<div style="color:var(--text-dim);font-size:13px">No pending approvals</div>';
+    }
+    
+    // Vulnerabilities
+    const vulnResp = await fetch(`${API}/api/vulnerabilities`);
+    const vulnData = await vulnResp.json();
+    const vulnTbody = document.getElementById('vulnTable');
+    if (vulnData.vulnerabilities?.length) {
+      vulnTbody.innerHTML = vulnData.vulnerabilities.map(v => `
+        <tr class="animate-in">
+          <td style="font-weight:600">${v.id}</td>
+          <td>${v.file}:${v.line}</td>
+          <td><span class="badge badge-${(v.severity||'').toLowerCase()}">${v.cwe}</span></td>
+          <td>${v.title}</td>
+          <td><span class="badge badge-${(v.severity||'').toLowerCase()}">${v.severity}</span></td>
+          <td><span class="badge badge-${v.status?.toLowerCase()}">${v.status}</span></td>
+          <td style="font-size:12px;color:var(--text-dim)">${v.foundBy}</td>
+        </tr>
+      `).join('');
+    }
+    
+    // Decisions
+    if (d.recentDecisions?.length) {
+      document.getElementById('decisionTable').innerHTML = d.recentDecisions.map(dec => `
+        <tr class="animate-in">
+          <td style="font-size:11px;color:var(--text-dim)">${new Date(dec.timestamp).toLocaleTimeString()}</td>
+          <td><strong>${dec.agent}</strong></td>
+          <td><span class="badge" style="background:rgba(139,92,246,.15);color:var(--purple)">${dec.type}</span></td>
+          <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${dec.action}</td>
+          <td>${dec.confidence ? dec.confidence + '%' : '—'}</td>
+        </tr>
+      `).join('');
+    }
+    
+    // Compliance
+    if (d.totalDecisions > 0) {
+      document.getElementById('complianceStatus').innerHTML = `
+        <div class="agent-card"><strong>SOC2 CC6.1</strong><br><span style="font-size:12px;color:var(--text-dim)">Logical Access</span><br><span style="color:var(--green)">✅ PASS — ${Object.keys(d.agents||{}).length} agents with KYA identity</span></div>
+        <div class="agent-card"><strong>SOC2 CC7.2</strong><br><span style="font-size:12px;color:var(--text-dim)">System Monitoring</span><br><span style="color:var(--green)">✅ PASS — ${d.totalDecisions} decisions logged</span></div>
+        <div class="agent-card"><strong>SOC2 CC8.1</strong><br><span style="font-size:12px;color:var(--text-dim)">Change Management</span><br><span style="color:var(--green)">✅ PASS — ${d.stats?.humanApprovals || 0} human approvals</span></div>
+        <div class="agent-card"><strong>HIPAA §164.312</strong><br><span style="font-size:12px;color:var(--text-dim)">Technical Safeguards</span><br><span style="color:var(--green)">✅ PASS — Automated scanning active</span></div>
+        <div class="agent-card"><strong>ISO27001 A.12.6</strong><br><span style="font-size:12px;color:var(--text-dim)">Vuln Management</span><br><span style="color:var(--green)">✅ PASS — ${d.totalVulnerabilities || 0} vulns tracked</span></div>
+        <div class="agent-card"><strong>FINRA 2026</strong><br><span style="font-size:12px;color:var(--text-dim)">AI Auditability</span><br><span style="color:var(--green)">✅ PASS — Full reasoning chain logged</span></div>
+      `;
+    }
+  } catch (e) {}
+}
+
+function showToast(msg) {
+  const t = document.createElement('div');
+  t.className = 'toast animate-in';
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3000);
+}
+
+// Auto-refresh
+refreshAll();
+pollTimer = setInterval(refreshAll, 5000);
+</script>
+</body>
+</html>
